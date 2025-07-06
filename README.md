@@ -9,6 +9,7 @@ Jon Schlinkert.
 
 - Supports globbing patterns (via your shell):
   - `stripcomments ./dist/*.js ./src/*.ts`
+- Respects `.gitignore` patterns when expanding globs
 - Supports piping:
   - `cat source.js | stripcomments`
   - `cat source.js | stripcomments > source.stripped.js`

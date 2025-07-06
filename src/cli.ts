@@ -3,8 +3,10 @@ import readline from 'readline';
 import path from 'path';
 import { performance } from 'perf_hooks';
 import strip from 'strip-comments';
-import { EOL } from 'os';
+import os, { EOL } from 'os';
 import { getopts } from '@prasadrajandran/getopts';
+import fg from 'fast-glob';
+import ignore from 'ignore';
 import { schema } from './cli_schema';
 import man from './man.txt';
 import {
@@ -93,6 +95,61 @@ import { languageMapper } from './helpers/language_mapper';
   const KEEP_BLOCK = opts.has('--keep-block');
   const OUTPUT_DIR = (opts.get('-o') || opts.get('--out-dir') || '') as string;
   const LANGUAGE_OPTION = (opts.get('--language') as string) || false;
+
+  const REPO_ROOT = (() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { execSync } = require('child_process');
+      return execSync('git rev-parse --show-toplevel', {
+        encoding: 'utf-8',
+      }).trim();
+    } catch {
+      return process.cwd();
+    }
+  })();
+
+  const repoIgnore = (() => {
+    const ig = ignore();
+    const files = fg.sync('**/.gitignore', { cwd: REPO_ROOT, dot: true });
+    for (const file of files) {
+      const abs = path.join(REPO_ROOT, file);
+      const dir = path.posix.dirname(file);
+      const patterns = readFileSync(abs, 'utf-8')
+        .split(/\r?\n/)
+        .filter((line) => line && !line.startsWith('#'))
+        .map((p) => path.posix.join(dir, p));
+      ig.add(patterns);
+    }
+    return ig;
+  })();
+
+  const globalIgnore = (() => {
+    const file = path.join(os.homedir(), '.gitignore_global');
+    if (existsSync(file)) {
+      return ignore().add(readFileSync(file, 'utf-8'));
+    }
+    return null;
+  })();
+
+  const expandAndFilterFiles = async (patterns: string[]): Promise<string[]> => {
+    const matches = await fg(patterns, {
+      dot: true,
+      onlyFiles: true,
+      cwd: REPO_ROOT,
+    });
+
+    return matches.filter((file) => {
+      const abs = path.resolve(REPO_ROOT, file);
+      const rel = path.posix.relative(REPO_ROOT, abs);
+      if (repoIgnore.ignores(rel)) {
+        return false;
+      }
+      if (globalIgnore && globalIgnore.ignores(rel)) {
+        return false;
+      }
+      return true;
+    });
+  };
 
   if (!DATA_FROM_FILES && !DATA_FROM_STDIN) {
     printError(`no FILE(s) specified...`);
@@ -246,8 +303,9 @@ import { languageMapper } from './helpers/language_mapper';
       };
     }
 
-    for (const filename of args as string[]) {
-      await processData(filename);
+    const files = await expandAndFilterFiles(args as string[]);
+    for (const filename of files) {
+      await processData(path.resolve(REPO_ROOT, filename));
     }
 
     if (prompt) {
