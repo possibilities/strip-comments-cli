@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 
 module.exports = {
   mode: 'production',
@@ -24,4 +25,10 @@ module.exports = {
     filename: 'cli.js',
     path: path.resolve(__dirname, 'dist'),
   },
+  plugins: [
+    new webpack.BannerPlugin({
+      banner: '#!/usr/bin/env node',
+      raw: true,
+    }),
+  ],
 };

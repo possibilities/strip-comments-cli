@@ -36,7 +36,7 @@
     "dist/"
   ],
   "scripts": {
-    "build": "webpack",
+    "build": "NODE_OPTIONS=--openssl-legacy-provider webpack",
     "lint": "eslint ./src",
     "prettier-fix": "prettier . --write",
     "test": "jest"
